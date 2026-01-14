@@ -5,6 +5,8 @@ import { INDICES_DATA } from '../constants';
 const Reports: React.FC = () => {
     const [reportType, setReportType] = useState('Morning');
     const [copied, setCopied] = useState(false);
+    const [loadingAi, setLoadingAi] = useState(false);
+    const [aiResult, setAiResult] = useState<string | null>(null);
 
     // Generate Dynamic Content based on current Mock Data
     const shIndex = INDICES_DATA.find(i => i.code === 'sh000001');
@@ -55,6 +57,29 @@ const Reports: React.FC = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const optimizeWithAi = async () => {
+        setLoadingAi(true);
+        setAiResult(null);
+        try {
+            const res = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: generateMarkdown() })
+            });
+            const data = await res.json();
+            if (data.error) {
+                setAiResult(`错误：${data.error}`);
+            } else {
+                const text = data?.choices?.[0]?.message?.content || data?.result || JSON.stringify(data);
+                setAiResult(typeof text === 'string' ? text : JSON.stringify(text));
+            }
+        } catch (e: any) {
+            setAiResult(String(e?.message || e));
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
     return (
         <div className="p-6 h-full flex flex-col">
             <div className="flex justify-between items-center mb-6">
@@ -78,18 +103,34 @@ const Reports: React.FC = () => {
             <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/30">
                     <span className="text-xs font-mono text-slate-500">{dateStr}-{typeMap[reportType]}-Report.md</span>
-                    <button 
-                        onClick={handleCopy}
-                        className="flex items-center gap-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded border border-slate-700 transition-colors"
-                    >
-                        {copied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}
-                        {copied ? '已复制' : '复制 Markdown'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                          onClick={handleCopy}
+                          className="flex items-center gap-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded border border-slate-700 transition-colors"
+                      >
+                          {copied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} 
+                          {copied ? '已复制' : '复制 Markdown'}
+                      </button>
+                      <button
+                          onClick={optimizeWithAi}
+                          disabled={loadingAi}
+                          className="flex items-center gap-2 text-xs font-medium bg-gold-600 hover:bg-gold-500 text-slate-900 px-3 py-1.5 rounded border border-transparent transition-colors disabled:opacity-60"
+                      >
+                          {loadingAi ? 'AI 优化中...' : 'AI 优化'}
+                      </button>
+                    </div>
                 </div>
                 <div className="flex-1 p-6 overflow-y-auto">
                     <pre className="whitespace-pre-wrap font-mono text-sm text-slate-300 leading-relaxed">
                         {generateMarkdown()}
                     </pre>
+
+                    {aiResult && (
+                        <div className="mt-4 p-4 rounded border border-slate-800 bg-slate-900 text-slate-200">
+                            <h4 className="text-sm font-semibold mb-2">AI 优化建议</h4>
+                            <pre className="whitespace-pre-wrap font-mono text-sm">{aiResult}</pre>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
